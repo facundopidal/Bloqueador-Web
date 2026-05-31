@@ -72,6 +72,7 @@ mod tests {
     #[test]
     fn test_always_blocked_site_serialization() {
         let config = Config {
+            autostart: false,
             sites: vec![BlockedSite {
                 url: "facebook.com".to_string(),
                 mode: BlockMode::Always,
@@ -92,6 +93,7 @@ mod tests {
         let start_time = NaiveTime::from_hms_opt(9, 0, 0).unwrap();
         let end_time = NaiveTime::from_hms_opt(18, 0, 0).unwrap();
         let config = Config {
+            autostart: false,
             sites: vec![BlockedSite {
                 url: "instagram.com".to_string(),
                 mode: BlockMode::Scheduled {

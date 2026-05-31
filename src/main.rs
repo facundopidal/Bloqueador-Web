@@ -96,7 +96,7 @@ fn main() -> Result<()> {
 
     // 4. Interceptar el cierre (X) para ocultar la ventana en vez de cerrar el proceso
     let app_weak = app.as_weak();
-    app.on_close_requested(move || {
+    app.window().on_close_requested(move || {
         if let Some(app) = app_weak.upgrade() {
             info!("Ventana cerrada por el usuario. Ocultando ventana...");
             app.hide().unwrap();
@@ -134,7 +134,7 @@ fn main() -> Result<()> {
 
             // Escuchar eventos de clic en el Tray Icon (Doble clic abre la app)
             if let Ok(event) = tray_channel.try_recv() {
-                if event.click_type == tray_icon::ClickType::Double {
+                if let tray_icon::TrayIconEvent::DoubleClick { .. } = event {
                     info!("Doble clic en Tray Icon recibido.");
                     let app_weak = app_weak_tray.clone();
                     let _ = slint::invoke_from_event_loop(move || {

@@ -12,7 +12,7 @@ export component AppWindow inherits Window {
     width: 650px;
     height: 700px;
     background: #121214;
-    default-font-family: "Segoe UI", "Inter", sans-serif;
+    default-font-family: "Segoe UI";
 
     in-out property <[BlockedSiteItem]> sites: [];
     in-out property <bool> autostart_enabled: false;
@@ -137,7 +137,6 @@ export component AppWindow inherits Window {
             // Lógica para deshabilitar las acciones principales durante el desbloqueo
             VerticalLayout {
                 spacing: 16px;
-                enabled: !is_unlocking;
 
                 // Formulario de Agregar URL (Card background)
                 Rectangle {
@@ -169,6 +168,7 @@ export component AppWindow inherits Window {
                                 placeholder-text: "ej. facebook.com";
                                 font-size: 14px;
                                 height: 38px;
+                                enabled: !is_unlocking;
                             }
                         }
 
@@ -199,10 +199,12 @@ export component AppWindow inherits Window {
                                         font-size: 13px;
                                         font-weight: 600;
                                         color: #ffffff;
-                                        alignment: center;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
                                     }
 
                                     TouchArea {
+                                        enabled: !is_unlocking;
                                         clicked => { selected_mode = "always"; }
                                     }
                                 }
@@ -219,10 +221,12 @@ export component AppWindow inherits Window {
                                         font-size: 13px;
                                         font-weight: 600;
                                         color: #ffffff;
-                                        alignment: center;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
                                     }
 
                                     TouchArea {
+                                        enabled: !is_unlocking;
                                         clicked => { selected_mode = "scheduled"; }
                                     }
                                 }
@@ -230,9 +234,9 @@ export component AppWindow inherits Window {
                         }
 
                         // Horarios (solo visibles si modo es programado)
-                        if (selected_mode == "scheduled") : VerticalLayout {
+                        VerticalLayout {
+                            visible: selected_mode == "scheduled";
                             spacing: 8px;
-                            animate opacity { duration: 150ms; }
                             
                             HorizontalLayout {
                                 spacing: 12px;
@@ -249,6 +253,7 @@ export component AppWindow inherits Window {
                                         placeholder-text: "HH:MM";
                                         font-size: 14px;
                                         height: 38px;
+                                        enabled: !is_unlocking;
                                     }
                                 }
                                 VerticalLayout {
@@ -264,6 +269,7 @@ export component AppWindow inherits Window {
                                         placeholder-text: "HH:MM";
                                         font-size: 14px;
                                         height: 38px;
+                                        enabled: !is_unlocking;
                                     }
                                 }
                             }
@@ -282,10 +288,12 @@ export component AppWindow inherits Window {
                                 font-size: 14px;
                                 font-weight: 700;
                                 color: #ffffff;
-                                alignment: center;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
 
                             TouchArea {
+                                enabled: !is_unlocking;
                                 clicked => {
                                     error_message = "";
                                     if (url_input.text == "") {
@@ -339,13 +347,15 @@ export component AppWindow inherits Window {
                                 text: "No hay ningún sitio bloqueado.";
                                 font-size: 13px;
                                 color: #a0a0b0;
-                                alignment: center;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                             Text {
                                 text: "¡Disfrutá de tu tranquilidad!";
                                 font-size: 11px;
                                 color: #606075;
-                                alignment: center;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                         }
 
@@ -396,10 +406,12 @@ export component AppWindow inherits Window {
                                                     font-size: 12px;
                                                     font-weight: 800;
                                                     color: #ffffff;
-                                                    alignment: center;
+                                                    horizontal-alignment: center;
+                                                    vertical-alignment: center;
                                                 }
 
                                                 TouchArea {
+                                                    enabled: !is_unlocking;
                                                     clicked => {
                                                         start_unlock_flow(site.url);
                                                     }
@@ -433,7 +445,6 @@ export component AppWindow inherits Window {
             border-width: 2px;
             border-color: #ff5252;
             padding: 24px;
-            alignment: center;
 
             VerticalLayout {
                 spacing: 16px;
@@ -473,7 +484,8 @@ export component AppWindow inherits Window {
                             font-size: 22px;
                             font-weight: 800;
                             color: unlock_timer_seconds > 0 ? #ff5252 : #4caf50;
-                            alignment: center;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
                         }
                     }
 
@@ -488,7 +500,6 @@ export component AppWindow inherits Window {
                 // Input para la frase motivacional (solo habilitado si la cuenta llegó a 0)
                 VerticalLayout {
                     spacing: 6px;
-                    enabled: unlock_timer_seconds == 0;
                     opacity: unlock_timer_seconds == 0 ? 1.0 : 0.3;
 
                     Text {
@@ -510,6 +521,7 @@ export component AppWindow inherits Window {
                         font-size: 14px;
                         height: 38px;
                         text: typed_phrase;
+                        enabled: unlock_timer_seconds == 0;
                         edited(text) => {
                             typed_phrase = text;
                         }
@@ -533,7 +545,8 @@ export component AppWindow inherits Window {
                             font-size: 13px;
                             font-weight: 600;
                             color: #ffffff;
-                            alignment: center;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
                         }
 
                         TouchArea {
@@ -552,7 +565,6 @@ export component AppWindow inherits Window {
                         background: can_confirm ? #4caf50 : #1a3320;
                         border-width: 1px;
                         border-color: can_confirm ? #81c784 : #2a4c33;
-                        enabled: can_confirm;
                         opacity: can_confirm ? 1.0 : 0.5;
 
                         Text {
@@ -560,10 +572,12 @@ export component AppWindow inherits Window {
                             font-size: 13px;
                             font-weight: 700;
                             color: #ffffff;
-                            alignment: center;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
                         }
 
                         TouchArea {
+                            enabled: can_confirm;
                             clicked => {
                                 confirm_unlock();
                             }
