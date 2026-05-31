@@ -1,18 +1,18 @@
 #![windows_subsystem = "windows"]
 
 use anyhow::Result;
+use chrono::NaiveTime;
 use is_elevated::is_elevated;
-use log::{error, info, LevelFilter};
+use log::{LevelFilter, error, info};
 use native_dialog::{MessageDialog, MessageType};
 use simplelog::{Config as LogConfig, WriteLogger};
 use std::sync::mpsc;
-use chrono::NaiveTime;
 
 mod hosts;
 use hosts::{normalize_url, read_hosts_data, save_hosts_data};
 
 mod config;
-use config::{Config, BlockedSite, BlockMode};
+use config::{BlockMode, BlockedSite, Config};
 
 mod autostart;
 
@@ -135,16 +135,14 @@ fn main() -> Result<()> {
             }
 
             // Escuchar eventos de clic en el Tray Icon (Doble clic abre la app)
-            if let Ok(event) = tray_channel.try_recv() {
-                if let tray_icon::TrayIconEvent::DoubleClick { .. } = event {
-                    info!("Doble clic en Tray Icon recibido.");
-                    let app_weak = app_weak_tray.clone();
-                    let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(app) = app_weak.upgrade() {
-                            app.show().unwrap();
-                        }
-                    });
-                }
+            if let Ok(tray_icon::TrayIconEvent::DoubleClick { .. }) = tray_channel.try_recv() {
+                info!("Doble clic en Tray Icon recibido.");
+                let app_weak = app_weak_tray.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = app_weak.upgrade() {
+                        app.show().unwrap();
+                    }
+                });
             }
 
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -169,7 +167,9 @@ fn main() -> Result<()> {
         }
 
         if !url_trimmed.contains('.') || url_trimmed.contains(' ') {
-            app.set_error_message(slint::SharedString::from("Por favor ingresá un dominio válido (ej: facebook.com)."));
+            app.set_error_message(slint::SharedString::from(
+                "Por favor ingresá un dominio válido (ej: facebook.com).",
+            ));
             return;
         }
 
@@ -185,7 +185,9 @@ fn main() -> Result<()> {
                 match (start_parsed, end_parsed) {
                     (Ok(start), Ok(end)) => BlockMode::Scheduled { start, end },
                     _ => {
-                        app.set_error_message(slint::SharedString::from("Formato de hora inválido. Usar HH:MM."));
+                        app.set_error_message(slint::SharedString::from(
+                            "Formato de hora inválido. Usar HH:MM.",
+                        ));
                         return;
                     }
                 }
@@ -195,7 +197,11 @@ fn main() -> Result<()> {
 
         let mut config = Config::load_from_file(&config_path_clone).unwrap_or_default();
 
-        if config.sites.iter().any(|s| normalize_url(&s.url) == normalized) {
+        if config
+            .sites
+            .iter()
+            .any(|s| normalize_url(&s.url) == normalized)
+        {
             app.set_error_message(slint::SharedString::from("Este sitio ya está en la lista."));
             return;
         }
@@ -206,7 +212,10 @@ fn main() -> Result<()> {
         });
 
         if let Err(e) = config.save_to_file(&config_path_clone) {
-            app.set_error_message(slint::SharedString::from(format!("Error al guardar: {}", e)));
+            app.set_error_message(slint::SharedString::from(format!(
+                "Error al guardar: {}",
+                e
+            )));
             return;
         }
 
@@ -233,7 +242,10 @@ fn main() -> Result<()> {
 
         if config.sites.len() < initial_len {
             if let Err(e) = config.save_to_file(&config_path_clone) {
-                app.set_error_message(slint::SharedString::from(format!("Error al guardar: {}", e)));
+                app.set_error_message(slint::SharedString::from(format!(
+                    "Error al guardar: {}",
+                    e
+                )));
                 return;
             }
             sync_ui_from_config(&app, &config_path_clone);
@@ -253,8 +265,11 @@ fn main() -> Result<()> {
         // Intentar registrar/eliminar la tarea programada con schtasks
         if let Err(e) = autostart::set_autostart_task(enabled) {
             // Reportar el error a la UI asignando el mensaje de error a error_message
-            app.set_error_message(slint::SharedString::from(format!("Error de Autostart: {}", e)));
-            
+            app.set_error_message(slint::SharedString::from(format!(
+                "Error de Autostart: {}",
+                e
+            )));
+
             // Restaurar el estado visual del toggle al valor anterior de la configuración guardada
             let current_config = Config::load_from_file(&config_path_clone).unwrap_or_default();
             app.set_autostart_enabled(current_config.autostart);
@@ -265,7 +280,10 @@ fn main() -> Result<()> {
         config.autostart = enabled;
 
         if let Err(e) = config.save_to_file(&config_path_clone) {
-            app.set_error_message(slint::SharedString::from(format!("Error al guardar configuración: {}", e)));
+            app.set_error_message(slint::SharedString::from(format!(
+                "Error al guardar configuración: {}",
+                e
+            )));
             // Si falla el guardado del archivo, restauramos el toggle al estado anterior
             let current_config = Config::load_from_file(&config_path_clone).unwrap_or_default();
             app.set_autostart_enabled(current_config.autostart);
@@ -313,7 +331,7 @@ fn sync_ui_from_config(app: &AppWindow, config_path: &std::path::Path) {
 }
 
 fn build_tray_menu() -> Result<tray_icon::menu::Menu> {
-    use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem, MenuId};
+    use tray_icon::menu::{Menu, MenuId, MenuItem, PredefinedMenuItem};
 
     let menu = Menu::new();
     let item_open = MenuItem::with_id(MenuId::new("open_app"), "Abrir", true, None);
@@ -388,8 +406,8 @@ fn start_scheduler(rx: mpsc::Receiver<()>) {
 
                         if is_blocked {
                             let normalized = normalize_url(&site.url);
-                            if normalized.starts_with("www.") {
-                                active_blocked.insert(normalized[4..].to_string());
+                            if let Some(stripped) = normalized.strip_prefix("www.") {
+                                active_blocked.insert(stripped.to_string());
                                 active_blocked.insert(normalized.clone());
                             } else {
                                 active_blocked.insert(format!("www.{}", normalized));
@@ -401,12 +419,19 @@ fn start_scheduler(rx: mpsc::Receiver<()>) {
                     match read_hosts_data() {
                         Ok(mut hosts_data) => {
                             if hosts_data.blocked_urls != active_blocked {
-                                info!("La lista de bloqueados activos cambió. Actualizando hosts...");
+                                info!(
+                                    "La lista de bloqueados activos cambió. Actualizando hosts..."
+                                );
                                 hosts_data.blocked_urls = active_blocked;
                                 if let Err(e) = save_hosts_data(&hosts_data) {
-                                    error!("Error actualizando archivo hosts desde el scheduler: {}", e);
+                                    error!(
+                                        "Error actualizando archivo hosts desde el scheduler: {}",
+                                        e
+                                    );
                                 } else {
-                                    info!("Archivo hosts actualizado exitosamente por el scheduler.");
+                                    info!(
+                                        "Archivo hosts actualizado exitosamente por el scheduler."
+                                    );
                                 }
                             }
                         }
