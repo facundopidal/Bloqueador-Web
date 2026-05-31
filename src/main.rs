@@ -296,7 +296,8 @@ fn main() -> Result<()> {
 
     // 6. Correr event loop de Slint en el hilo principal
     info!("Mostrando ventana principal y corriendo event loop...");
-    app.run()?;
+    app.show()?;
+    slint::run_event_loop_until_quit()?;
 
     info!("Event loop finalizado. Saliendo de la aplicación.");
     Ok(())

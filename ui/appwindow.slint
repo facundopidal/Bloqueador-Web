@@ -9,6 +9,7 @@ export struct BlockedSiteItem {
 
 export component AppWindow inherits Window {
     title: "Bloqueador Web";
+    icon: @image-url("../assets/icon.png");
     width: 650px;
     height: 700px;
     background: #121214;
@@ -402,7 +403,7 @@ export component AppWindow inherits Window {
                                                 background: #ff5252;
 
                                                 Text {
-                                                    text: "✕";
+                                                    text: "X";
                                                     font-size: 12px;
                                                     font-weight: 800;
                                                     color: #ffffff;
