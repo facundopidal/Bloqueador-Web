@@ -20,11 +20,6 @@ mod autostart;
 slint::include_modules!();
 
 fn main() -> Result<()> {
-    // Forzar el backend de software en Slint para minimizar el uso de memoria RAM
-    unsafe {
-        std::env::set_var("SLINT_BACKEND", "software");
-    }
-
     // 0. Inicializar Logging
     let log_path = match std::env::current_exe() {
         Ok(path) => path.with_extension("log"),
