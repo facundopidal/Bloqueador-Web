@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use anyhow::{Context, Result};
-use chrono::NaiveTime;
 
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq, Clone)]
 pub struct Config {
@@ -22,10 +22,7 @@ pub struct BlockedSite {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BlockMode {
     Always,
-    Scheduled {
-        start: NaiveTime,
-        end: NaiveTime,
-    },
+    Scheduled { start: NaiveTime, end: NaiveTime },
 }
 
 impl Config {
@@ -36,21 +33,33 @@ impl Config {
         }
         let content = fs::read_to_string(path)
             .with_context(|| format!("No se pudo leer el archivo de configuración: {:?}", path))?;
-        let config: Config = toml::from_str(&content)
-            .with_context(|| format!("Error parseando el archivo de configuración TOML: {:?}", path))?;
+        let config: Config = toml::from_str(&content).with_context(|| {
+            format!(
+                "Error parseando el archivo de configuración TOML: {:?}",
+                path
+            )
+        })?;
         Ok(config)
     }
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("No se pudo crear el directorio para la configuración: {:?}", parent))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!(
+                    "No se pudo crear el directorio para la configuración: {:?}",
+                    parent
+                )
+            })?;
         }
-        let content = toml::to_string_pretty(self)
-            .context("Error serializando la configuración a TOML")?;
-        fs::write(path, content)
-            .with_context(|| format!("No se pudo escribir el archivo de configuración: {:?}", path))?;
+        let content =
+            toml::to_string_pretty(self).context("Error serializando la configuración a TOML")?;
+        fs::write(path, content).with_context(|| {
+            format!(
+                "No se pudo escribir el archivo de configuración: {:?}",
+                path
+            )
+        })?;
         Ok(())
     }
 }
@@ -64,7 +73,8 @@ mod tests {
     fn test_empty_config_serialization() {
         let config = Config::default();
         let toml_str = toml::to_string(&config).expect("Failed to serialize empty config");
-        let deserialized: Config = toml::from_str(&toml_str).expect("Failed to deserialize empty config");
+        let deserialized: Config =
+            toml::from_str(&toml_str).expect("Failed to deserialize empty config");
         assert_eq!(config, deserialized);
         assert!(config.sites.is_empty());
     }
@@ -78,10 +88,15 @@ mod tests {
                 mode: BlockMode::Always,
             }],
         };
-        let toml_str = toml::to_string(&config).expect("Failed to serialize config with always block");
-        assert!(toml_str.contains("facebook.com"), "TOML does not contain URL");
-        
-        let deserialized: Config = toml::from_str(&toml_str).expect("Failed to deserialize always config");
+        let toml_str =
+            toml::to_string(&config).expect("Failed to serialize config with always block");
+        assert!(
+            toml_str.contains("facebook.com"),
+            "TOML does not contain URL"
+        );
+
+        let deserialized: Config =
+            toml::from_str(&toml_str).expect("Failed to deserialize always config");
         assert_eq!(config, deserialized);
         assert_eq!(deserialized.sites.len(), 1);
         assert_eq!(deserialized.sites[0].url, "facebook.com");
@@ -102,12 +117,23 @@ mod tests {
                 },
             }],
         };
-        let toml_str = toml::to_string(&config).expect("Failed to serialize config with scheduled block");
-        assert!(toml_str.contains("instagram.com"), "TOML does not contain URL");
-        assert!(toml_str.contains("09:00:00"), "TOML does not contain start time");
-        assert!(toml_str.contains("18:00:00"), "TOML does not contain end time");
+        let toml_str =
+            toml::to_string(&config).expect("Failed to serialize config with scheduled block");
+        assert!(
+            toml_str.contains("instagram.com"),
+            "TOML does not contain URL"
+        );
+        assert!(
+            toml_str.contains("09:00:00"),
+            "TOML does not contain start time"
+        );
+        assert!(
+            toml_str.contains("18:00:00"),
+            "TOML does not contain end time"
+        );
 
-        let deserialized: Config = toml::from_str(&toml_str).expect("Failed to deserialize scheduled config");
+        let deserialized: Config =
+            toml::from_str(&toml_str).expect("Failed to deserialize scheduled config");
         assert_eq!(config, deserialized);
         assert_eq!(deserialized.sites.len(), 1);
         assert_eq!(deserialized.sites[0].url, "instagram.com");
@@ -123,7 +149,7 @@ mod tests {
     fn test_load_and_save_file() {
         let temp_dir = std::env::temp_dir();
         let path = temp_dir.join("test_config.toml");
-        
+
         // Ensure clean state
         if path.exists() {
             let _ = std::fs::remove_file(&path);
@@ -139,7 +165,9 @@ mod tests {
             url: "youtube.com".to_string(),
             mode: BlockMode::Always,
         });
-        config.save_to_file(&path).expect("Failed to save config to file");
+        config
+            .save_to_file(&path)
+            .expect("Failed to save config to file");
 
         // Test loading it back
         let loaded = Config::load_from_file(&path).expect("Failed to load config from file");
@@ -153,14 +181,15 @@ mod tests {
     fn test_autostart_default_and_serialization() {
         // Test que verifica que autostart se serializa y deserializa correctamente
         let mut config = Config::default();
-        assert_eq!(config.autostart, false); // Esto fallará al compilar si no existe el campo
+        assert!(!config.autostart); // Esto fallará al compilar si no existe el campo
 
         config.autostart = true;
         let toml_str = toml::to_string(&config).expect("Failed to serialize config with autostart");
         assert!(toml_str.contains("autostart = true") || toml_str.contains("autostart = true\n"));
 
-        let deserialized: Config = toml::from_str(&toml_str).expect("Failed to deserialize config with autostart");
-        assert_eq!(deserialized.autostart, true);
+        let deserialized: Config =
+            toml::from_str(&toml_str).expect("Failed to deserialize config with autostart");
+        assert!(deserialized.autostart);
     }
 
     #[test]
@@ -171,8 +200,8 @@ mod tests {
             url = "example.com"
             mode = { type = "always" }
         "#;
-        let deserialized: Config = toml::from_str(toml_str).expect("Failed to deserialize config without autostart");
-        assert_eq!(deserialized.autostart, false);
+        let deserialized: Config =
+            toml::from_str(toml_str).expect("Failed to deserialize config without autostart");
+        assert!(!deserialized.autostart);
     }
 }
-
