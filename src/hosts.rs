@@ -7,7 +7,11 @@ use std::path::Path;
 
 const BEGIN_MARKER: &str = "# BEGIN BLOQUEADOR-WEB";
 const END_MARKER: &str = "# END BLOQUEADOR-WEB";
+#[cfg(target_os = "windows")]
 const HOSTS_PATH: &str = r"C:\Windows\System32\drivers\etc\hosts";
+
+#[cfg(not(target_os = "windows"))]
+const HOSTS_PATH: &str = "/etc/hosts";
 
 pub struct HostsData {
     pub base_lines: Vec<String>,

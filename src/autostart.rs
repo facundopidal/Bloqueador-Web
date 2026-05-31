@@ -1,21 +1,26 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::path::PathBuf;
+
+#[cfg(target_os = "windows")]
 use std::process::ExitStatus;
 
-/// Modifica el estado de inicio automático en Windows mediante el Programador de Tareas (schtasks).
-///
-/// Si `enabled` es true, registra una tarea para ejecutarse al iniciar sesión (`onlogon`)
-/// con los máximos privilegios (`highest`).
-/// Si es false, elimina la tarea programada.
+/// Modifica el estado de inicio automático en Windows mediante el Programador de Tareas (schtasks)
+/// o en Linux mediante la creación de un archivo `.desktop` en el directorio autostart.
+#[cfg(target_os = "windows")]
 pub fn set_autostart_task(enabled: bool) -> Result<()> {
-    set_autostart_task_internal(enabled, std::env::current_exe, |cmd, args| {
-        std::process::Command::new(cmd)
-            .args(args)
-            .status()
-            .map_err(|e| anyhow!("Error al ejecutar {}: {}", cmd, e))
-    })
+    set_autostart_task_internal(
+        enabled,
+        std::env::current_exe,
+        |cmd, args| {
+            std::process::Command::new(cmd)
+                .args(args)
+                .status()
+                .map_err(|e| anyhow!("Error al ejecutar {}: {}", cmd, e))
+        }
+    )
 }
 
+#[cfg(target_os = "windows")]
 fn set_autostart_task_internal(
     enabled: bool,
     current_exe_fn: impl FnOnce() -> std::io::Result<PathBuf>,
@@ -24,13 +29,9 @@ fn set_autostart_task_internal(
     if enabled {
         let exe_path = current_exe_fn()?
             .to_str()
-            .ok_or_else(|| {
-                anyhow!("No se pudo convertir la ruta del ejecutable a formato string válido")
-            })?
+            .ok_or_else(|| anyhow!("No se pudo convertir la ruta del ejecutable a formato string válido"))?
             .to_string();
-
-        // Para asegurar que schtasks maneje correctamente rutas con espacios,
-        // envolvemos la ruta del ejecutable entre comillas dobles escapadas dentro de /tr.
+        
         let tr_value = format!("\"{}\"", exe_path);
         let args = [
             "/create",
@@ -47,25 +48,69 @@ fn set_autostart_task_internal(
 
         let status = run_cmd_fn("schtasks", &args)?;
         if !status.success() {
-            return Err(anyhow!(
-                "schtasks falló al crear la tarea. Asegurate de ejecutar la aplicación como Administrador."
-            ));
+            return Err(anyhow!("schtasks falló al crear la tarea. Asegurate de ejecutar la aplicación como Administrador."));
         }
     } else {
-        let args = ["/delete", "/tn", "BloqueadorWeb", "/f"];
+        let args = [
+            "/delete",
+            "/tn",
+            "BloqueadorWeb",
+            "/f",
+        ];
 
         let status = run_cmd_fn("schtasks", &args)?;
         if !status.success() {
-            return Err(anyhow!(
-                "schtasks falló al eliminar la tarea. Asegurate de ejecutar la aplicación como Administrador."
-            ));
+            return Err(anyhow!("schtasks falló al eliminar la tarea. Asegurate de ejecutar la aplicación como Administrador."));
         }
     }
 
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(not(target_os = "windows"))]
+pub fn set_autostart_task(enabled: bool) -> Result<()> {
+    let home = std::env::var("HOME")
+        .map_err(|_| anyhow!("No se pudo obtener la variable de entorno HOME"))?;
+    
+    let mut autostart_dir = PathBuf::from(home);
+    autostart_dir.push(".config");
+    autostart_dir.push("autostart");
+    
+    let mut desktop_file = autostart_dir.clone();
+    desktop_file.push("bloqueador-web.desktop");
+    
+    if enabled {
+        std::fs::create_dir_all(&autostart_dir)
+            .map_err(|e| anyhow!("No se pudo crear el directorio de autostart: {}", e))?;
+            
+        let exe_path = std::env::current_exe()?
+            .to_str()
+            .ok_or_else(|| anyhow!("No se pudo convertir la ruta del ejecutable a string"))?
+            .to_string();
+            
+        let desktop_content = format!(
+            "[Desktop Entry]\n\
+            Type=Application\n\
+            Name=Bloqueador Web\n\
+            Exec=\"{}\"\n\
+            Hidden=false\n\
+            NoDisplay=false\n\
+            X-GNOME-Autostart-enabled=true\n\
+            Comment=Bloqueador de sitios web para concentrarse\n",
+            exe_path
+        );
+        
+        std::fs::write(&desktop_file, desktop_content)
+            .map_err(|e| anyhow!("No se pudo escribir el archivo .desktop: {}", e))?;
+    } else if desktop_file.exists() {
+        std::fs::remove_file(&desktop_file)
+            .map_err(|e| anyhow!("No se pudo eliminar el archivo .desktop: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::*;
 
@@ -118,14 +163,12 @@ mod tests {
     #[test]
     fn test_set_autostart_enable_failure() {
         let exe_mock = || Ok(PathBuf::from("blocker.exe"));
-        let run_mock = |_: &str, _: &[&str]| Ok(mock_exit_status(false));
+        let run_mock = |_: &str, _: &[&str]| {
+            Ok(mock_exit_status(false))
+        };
 
         let res = set_autostart_task_internal(true, exe_mock, run_mock);
         assert!(res.is_err());
-        assert!(
-            res.unwrap_err()
-                .to_string()
-                .contains("schtasks falló al crear")
-        );
+        assert!(res.unwrap_err().to_string().contains("schtasks falló al crear"));
     }
 }
