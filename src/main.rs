@@ -92,6 +92,7 @@ fn main() -> Result<()> {
     let menu = build_tray_menu()?;
     let _tray_icon = tray_icon::TrayIconBuilder::new()
         .with_menu(Box::new(menu))
+        .with_menu_on_left_click(false)
         .with_tooltip("Bloqueador Web")
         .with_icon(icon)
         .build()?;
@@ -163,7 +164,7 @@ fn main() -> Result<()> {
                 }
             }
 
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
     });
 
