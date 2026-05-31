@@ -23,7 +23,7 @@ pub fn read_hosts_data_from_path<P: AsRef<Path>>(path: P) -> Result<HostsData> {
     info!("Leyendo archivo hosts desde: {:?}", path);
     let file = File::open(path).context("No se pudo abrir el archivo hosts")?;
     let reader = BufReader::new(file);
-    
+
     let mut base_lines = Vec::new();
     let mut blocked_urls = HashSet::new();
     let mut inside_block = false;
@@ -51,8 +51,14 @@ pub fn read_hosts_data_from_path<P: AsRef<Path>>(path: P) -> Result<HostsData> {
         }
     }
 
-    info!("Lectura de hosts completada. {} URLs bloqueadas encontradas.", blocked_urls.len());
-    Ok(HostsData { base_lines, blocked_urls })
+    info!(
+        "Lectura de hosts completada. {} URLs bloqueadas encontradas.",
+        blocked_urls.len()
+    );
+    Ok(HostsData {
+        base_lines,
+        blocked_urls,
+    })
 }
 
 pub fn save_hosts_data(data: &HostsData) -> Result<()> {
@@ -61,8 +67,12 @@ pub fn save_hosts_data(data: &HostsData) -> Result<()> {
 
 pub fn save_hosts_data_to_path<P: AsRef<Path>>(path: P, data: &HostsData) -> Result<()> {
     let path = path.as_ref();
-    info!("Guardando {} URLs bloqueadas en el archivo hosts en {:?}", data.blocked_urls.len(), path);
-    
+    info!(
+        "Guardando {} URLs bloqueadas en el archivo hosts en {:?}",
+        data.blocked_urls.len(),
+        path
+    );
+
     // 1. Crear backup antes de modificar si existe
     if path.exists() {
         let backup_path = path.with_extension("bak");
@@ -74,7 +84,7 @@ pub fn save_hosts_data_to_path<P: AsRef<Path>>(path: P, data: &HostsData) -> Res
     }
 
     let mut new_content = data.base_lines.clone();
-    
+
     if !data.blocked_urls.is_empty() {
         new_content.push(BEGIN_MARKER.to_string());
         let mut sorted_urls: Vec<_> = data.blocked_urls.iter().collect();
@@ -95,7 +105,8 @@ pub fn save_hosts_data_to_path<P: AsRef<Path>>(path: P, data: &HostsData) -> Res
         }
     }
 
-    fs::rename(&temp_path, path).context("Error al reemplazar el archivo hosts original. Comprueba tu antivirus.")?;
+    fs::rename(&temp_path, path)
+        .context("Error al reemplazar el archivo hosts original. Comprueba tu antivirus.")?;
     info!("Archivo hosts actualizado exitosamente.");
     Ok(())
 }
@@ -157,4 +168,3 @@ mod tests {
         let _ = fs::remove_file(&path);
     }
 }
-
