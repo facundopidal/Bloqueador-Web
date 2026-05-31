@@ -1,0 +1,576 @@
+import { Button, LineEdit, ScrollView } from "std-widgets.slint";
+
+export struct BlockedSiteItem {
+    url: string,
+    mode_type: string, // "always" o "scheduled"
+    start_time: string, // "HH:MM"
+    end_time: string,   // "HH:MM"
+}
+
+export component AppWindow inherits Window {
+    title: "Bloqueador Web";
+    width: 650px;
+    height: 700px;
+    background: #121214;
+    default-font-family: "Segoe UI", "Inter", sans-serif;
+
+    in-out property <[BlockedSiteItem]> sites: [];
+    in-out property <bool> autostart_enabled: false;
+    in-out property <string> error_message: "";
+
+    callback add_site(string, string, string, string); // (url, mode_type, start_time, end_time)
+    callback remove_site(string); // (url)
+    callback toggle_autostart(bool);
+
+    // Estado del puzzle de desbloqueo
+    property <bool> is_unlocking: false;
+    property <string> site_to_unlock: "";
+    property <int> unlock_timer_seconds: 30;
+    property <string> typed_phrase: "";
+
+    // Timer para la cuenta regresiva de 30 segundos
+    unlock_timer := Timer {
+        interval: 1s;
+        running: is_unlocking && unlock_timer_seconds > 0;
+        triggered() => {
+            unlock_timer_seconds -= 1;
+        }
+    }
+
+    // Funciones internas
+    function start_unlock_flow(url: string) {
+        site_to_unlock = url;
+        unlock_timer_seconds = 30;
+        typed_phrase = "";
+        is_unlocking = true;
+    }
+
+    function cancel_unlock_flow() {
+        is_unlocking = false;
+        site_to_unlock = "";
+        unlock_timer_seconds = 30;
+        typed_phrase = "";
+    }
+
+    function confirm_unlock() {
+        if (typed_phrase == "Prometo trabajar concentrado hoy") {
+            remove_site(site_to_unlock);
+            cancel_unlock_flow();
+        }
+    }
+
+    // UI Layout
+    VerticalLayout {
+        padding: 24px;
+        spacing: 16px;
+
+        // Encabezado
+        HorizontalLayout {
+            alignment: space-between;
+            VerticalLayout {
+                spacing: 4px;
+                Text {
+                    text: "Bloqueador Web";
+                    font-size: 26px;
+                    font-weight: 800;
+                    color: #ffffff;
+                }
+                Text {
+                    text: "Focalizá en tu trabajo, eliminá distracciones";
+                    font-size: 13px;
+                    color: #a0a0b0;
+                }
+            }
+
+            // Switch AutoStart
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: "Inicio Automático";
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: #ffffff;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    // Switch customizado premium
+                    autostart_switch := Rectangle {
+                        width: 48px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: autostart_enabled ? #7c4dff : #2a2a35;
+                        border-width: 1px;
+                        border-color: autostart_enabled ? #9e73ff : #3f3f50;
+
+                        animate background { duration: 200ms; }
+
+                        handle := Rectangle {
+                            x: autostart_enabled ? 26px : 2px;
+                            y: 2px;
+                            width: 20px;
+                            height: 20px;
+                            border-radius: 10px;
+                            background: #ffffff;
+
+                            animate x { duration: 200ms; easing: ease-out; }
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                toggle_autostart(!autostart_enabled);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Panel Principal
+        HorizontalLayout {
+            // Dividido si no se está desbloqueando, si se está desbloqueando se inhabilita el resto y se enfoca en el puzzle
+            spacing: 16px;
+
+            // Lógica para deshabilitar las acciones principales durante el desbloqueo
+            VerticalLayout {
+                spacing: 16px;
+                enabled: !is_unlocking;
+
+                // Formulario de Agregar URL (Card background)
+                Rectangle {
+                    background: #1e1e24;
+                    border-radius: 12px;
+                    border-width: 1px;
+                    border-color: #2e2e38;
+                    padding: 16px;
+
+                    VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Bloquear Nueva URL";
+                            font-size: 16px;
+                            font-weight: 700;
+                            color: #ffffff;
+                        }
+
+                        // URL Input
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text {
+                                text: "Sitio Web o URL";
+                                font-size: 11px;
+                                font-weight: 600;
+                                color: #a0a0b0;
+                            }
+                            url_input := LineEdit {
+                                placeholder-text: "ej. facebook.com";
+                                font-size: 14px;
+                                height: 38px;
+                            }
+                        }
+
+                        // Modo de Bloqueo
+                        property <string> selected_mode: "always";
+                        
+                        VerticalLayout {
+                            spacing: 6px;
+                            Text {
+                                text: "Modo de Bloqueo";
+                                font-size: 11px;
+                                font-weight: 600;
+                                color: #a0a0b0;
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                height: 36px;
+                                
+                                // Botón modo "Siempre"
+                                mode_always_btn := Rectangle {
+                                    background: selected_mode == "always" ? #7c4dff : #2a2a35;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: selected_mode == "always" ? #9e73ff : #3f3f50;
+
+                                    Text {
+                                        text: "Siempre";
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        color: #ffffff;
+                                        alignment: center;
+                                    }
+
+                                    TouchArea {
+                                        clicked => { selected_mode = "always"; }
+                                    }
+                                }
+
+                                // Botón modo "Programado"
+                                mode_sched_btn := Rectangle {
+                                    background: selected_mode == "scheduled" ? #7c4dff : #2a2a35;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: selected_mode == "scheduled" ? #9e73ff : #3f3f50;
+
+                                    Text {
+                                        text: "Programado";
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        color: #ffffff;
+                                        alignment: center;
+                                    }
+
+                                    TouchArea {
+                                        clicked => { selected_mode = "scheduled"; }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Horarios (solo visibles si modo es programado)
+                        if (selected_mode == "scheduled") : VerticalLayout {
+                            spacing: 8px;
+                            animate opacity { duration: 150ms; }
+                            
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    Text {
+                                        text: "Hora Inicio";
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        color: #a0a0b0;
+                                    }
+                                    start_input := LineEdit {
+                                        text: "09:00";
+                                        placeholder-text: "HH:MM";
+                                        font-size: 14px;
+                                        height: 38px;
+                                    }
+                                }
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    Text {
+                                        text: "Hora Fin";
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        color: #a0a0b0;
+                                    }
+                                    end_input := LineEdit {
+                                        text: "18:00";
+                                        placeholder-text: "HH:MM";
+                                        font-size: 14px;
+                                        height: 38px;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Botón de Acción
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 6px;
+                            background: #7c4dff;
+                            border-width: 1px;
+                            border-color: #9e73ff;
+
+                            Text {
+                                text: "Bloquear URL";
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: #ffffff;
+                                alignment: center;
+                            }
+
+                            TouchArea {
+                                clicked => {
+                                    error_message = "";
+                                    if (url_input.text == "") {
+                                        error_message = "Por favor ingresá una URL válida.";
+                                    } else {
+                                        add_site(
+                                            url_input.text, 
+                                            selected_mode, 
+                                            selected_mode == "scheduled" ? start_input.text : "00:00", 
+                                            selected_mode == "scheduled" ? end_input.text : "00:00"
+                                        );
+                                        url_input.text = "";
+                                    }
+                                }
+                            }
+                        }
+
+                        // Mensaje de Error
+                        if (error_message != "") : Text {
+                            text: error_message;
+                            color: #ff5252;
+                            font-size: 12px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                // Lista de URLs Bloqueadas
+                Rectangle {
+                    background: #1e1e24;
+                    border-radius: 12px;
+                    border-width: 1px;
+                    border-color: #2e2e38;
+                    padding: 16px;
+                    vertical-stretch: 1.0;
+
+                    VerticalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: "Sitios Bloqueados Activos";
+                            font-size: 16px;
+                            font-weight: 700;
+                            color: #ffffff;
+                        }
+
+                        if (sites.length == 0) : VerticalLayout {
+                            alignment: center;
+                            height: 120px;
+                            Text {
+                                text: "No hay ningún sitio bloqueado.";
+                                font-size: 13px;
+                                color: #a0a0b0;
+                                alignment: center;
+                            }
+                            Text {
+                                text: "¡Disfrutá de tu tranquilidad!";
+                                font-size: 11px;
+                                color: #606075;
+                                alignment: center;
+                            }
+                        }
+
+                        if (sites.length > 0) : ScrollView {
+                            viewport-height: sites.length * 52px;
+                            
+                            VerticalLayout {
+                                spacing: 8px;
+                                for site[index] in sites : Rectangle {
+                                    height: 44px;
+                                    background: #2a2a35;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #3f3f50;
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        alignment: space-between;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            spacing: 2px;
+                                            Text {
+                                                text: site.url;
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                                color: #ffffff;
+                                            }
+                                            Text {
+                                                text: site.mode_type == "always" ? "Siempre" : "Programado: " + site.start_time + " a " + site.end_time;
+                                                font-size: 10px;
+                                                color: site.mode_type == "always" ? #7c4dff : #40c4ff;
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            // Botón de eliminar
+                                            Rectangle {
+                                                width: 28px;
+                                                height: 28px;
+                                                border-radius: 4px;
+                                                background: #ff5252;
+
+                                                Text {
+                                                    text: "✕";
+                                                    font-size: 12px;
+                                                    font-weight: 800;
+                                                    color: #ffffff;
+                                                    alignment: center;
+                                                }
+
+                                                TouchArea {
+                                                    clicked => {
+                                                        start_unlock_flow(site.url);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Capa Superpuesta (Modal) para el Puzzle de Desbloqueo Anti-Sabotaje
+    if (is_unlocking) : Rectangle {
+        background: #000000d0; // Fondo semi-transparente oscuro
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        
+        // Modal Card
+        Rectangle {
+            width: 450px;
+            height: 380px;
+            background: #1e1e24;
+            border-radius: 16px;
+            border-width: 2px;
+            border-color: #ff5252;
+            padding: 24px;
+            alignment: center;
+
+            VerticalLayout {
+                spacing: 16px;
+
+                Text {
+                    text: "PROTECCIÓN CONTRA EL AUTOSABOTAJE";
+                    font-size: 14px;
+                    font-weight: 800;
+                    color: #ff5252;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "¿Seguro que querés desbloquear " + site_to_unlock + "?";
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: #ffffff;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                // Círculo del temporizador
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 8px;
+                    
+                    Rectangle {
+                        width: 80px;
+                        height: 80px;
+                        border-radius: 40px;
+                        background: unlock_timer_seconds > 0 ? #ff525220 : #4caf5020;
+                        border-width: 3px;
+                        border-color: unlock_timer_seconds > 0 ? #ff5252 : #4caf50;
+                        
+                        Text {
+                            text: unlock_timer_seconds > 0 ? (unlock_timer_seconds + "s") : "Listo";
+                            font-size: 22px;
+                            font-weight: 800;
+                            color: unlock_timer_seconds > 0 ? #ff5252 : #4caf50;
+                            alignment: center;
+                        }
+                    }
+
+                    Text {
+                        text: unlock_timer_seconds > 0 ? "Por favor, esperá a que termine la cuenta regresiva..." : "Temporizador completado.";
+                        font-size: 12px;
+                        color: #a0a0b0;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                // Input para la frase motivacional (solo habilitado si la cuenta llegó a 0)
+                VerticalLayout {
+                    spacing: 6px;
+                    enabled: unlock_timer_seconds == 0;
+                    opacity: unlock_timer_seconds == 0 ? 1.0 : 0.3;
+
+                    Text {
+                        text: "Para confirmar, escribí la frase motivacional exacta:";
+                        font-size: 11px;
+                        color: #ffffff;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: "\"Prometo trabajar concentrado hoy\"";
+                        font-size: 13px;
+                        font-weight: 700;
+                        color: #40c4ff;
+                        horizontal-alignment: center;
+                    }
+                    
+                    phrase_input := LineEdit {
+                        placeholder-text: "Escribí aquí la frase...";
+                        font-size: 14px;
+                        height: 38px;
+                        text: typed_phrase;
+                        edited(text) => {
+                            typed_phrase = text;
+                        }
+                    }
+                }
+
+                // Botones de acción
+                HorizontalLayout {
+                    spacing: 12px;
+                    height: 40px;
+
+                    // Cancelar (siempre disponible)
+                    Rectangle {
+                        border-radius: 6px;
+                        background: #2a2a35;
+                        border-width: 1px;
+                        border-color: #3f3f50;
+
+                        Text {
+                            text: "Cancelar";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #ffffff;
+                            alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                cancel_unlock_flow();
+                            }
+                        }
+                    }
+
+                    // Confirmar (solo habilitado si el timer es 0 y la frase es correcta)
+                    property <bool> is_phrase_correct: typed_phrase == "Prometo trabajar concentrado hoy";
+                    property <bool> can_confirm: unlock_timer_seconds == 0 && is_phrase_correct;
+
+                    Rectangle {
+                        border-radius: 6px;
+                        background: can_confirm ? #4caf50 : #1a3320;
+                        border-width: 1px;
+                        border-color: can_confirm ? #81c784 : #2a4c33;
+                        enabled: can_confirm;
+                        opacity: can_confirm ? 1.0 : 0.5;
+
+                        Text {
+                            text: "Desbloquear Sitio";
+                            font-size: 13px;
+                            font-weight: 700;
+                            color: #ffffff;
+                            alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                confirm_unlock();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
