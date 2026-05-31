@@ -134,15 +134,33 @@ fn main() -> Result<()> {
                 }
             }
 
-            // Escuchar eventos de clic en el Tray Icon (Doble clic abre la app)
-            if let Ok(tray_icon::TrayIconEvent::DoubleClick { .. }) = tray_channel.try_recv() {
-                info!("Doble clic en Tray Icon recibido.");
-                let app_weak = app_weak_tray.clone();
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(app) = app_weak.upgrade() {
-                        app.show().unwrap();
+            // Escuchar eventos de clic en el Tray Icon (Doble clic o Clic izquierdo abre la app)
+            if let Ok(event) = tray_channel.try_recv() {
+                match event {
+                    tray_icon::TrayIconEvent::DoubleClick { .. } => {
+                        info!("Doble clic en Tray Icon recibido. Abriendo app.");
+                        let app_weak = app_weak_tray.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(app) = app_weak.upgrade() {
+                                app.show().unwrap();
+                            }
+                        });
                     }
-                });
+                    tray_icon::TrayIconEvent::Click {
+                        button: tray_icon::MouseButton::Left,
+                        button_state: tray_icon::MouseButtonState::Up,
+                        ..
+                    } => {
+                        info!("Clic izquierdo en Tray Icon recibido. Abriendo app.");
+                        let app_weak = app_weak_tray.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(app) = app_weak.upgrade() {
+                                app.show().unwrap();
+                            }
+                        });
+                    }
+                    _ => {}
+                }
             }
 
             std::thread::sleep(std::time::Duration::from_millis(100));
