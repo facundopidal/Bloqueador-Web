@@ -14,6 +14,8 @@ use hosts::{normalize_url, read_hosts_data, save_hosts_data};
 mod config;
 use config::{Config, BlockedSite, BlockMode};
 
+mod autostart;
+
 // Importar módulo compilado de Slint
 slint::include_modules!();
 
@@ -248,14 +250,29 @@ fn main() -> Result<()> {
             None => return,
         };
 
+        // Intentar registrar/eliminar la tarea programada con schtasks
+        if let Err(e) = autostart::set_autostart_task(enabled) {
+            // Reportar el error a la UI asignando el mensaje de error a error_message
+            app.set_error_message(slint::SharedString::from(format!("Error de Autostart: {}", e)));
+            
+            // Restaurar el estado visual del toggle al valor anterior de la configuración guardada
+            let current_config = Config::load_from_file(&config_path_clone).unwrap_or_default();
+            app.set_autostart_enabled(current_config.autostart);
+            return;
+        }
+
         let mut config = Config::load_from_file(&config_path_clone).unwrap_or_default();
         config.autostart = enabled;
 
         if let Err(e) = config.save_to_file(&config_path_clone) {
             app.set_error_message(slint::SharedString::from(format!("Error al guardar configuración: {}", e)));
+            // Si falla el guardado del archivo, restauramos el toggle al estado anterior
+            let current_config = Config::load_from_file(&config_path_clone).unwrap_or_default();
+            app.set_autostart_enabled(current_config.autostart);
             return;
         }
 
+        app.set_error_message(slint::SharedString::from(""));
         app.set_autostart_enabled(enabled);
     });
 
