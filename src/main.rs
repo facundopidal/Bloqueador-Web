@@ -6,6 +6,7 @@ use chrono::NaiveTime;
 use is_elevated::is_elevated;
 
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn is_elevated() -> bool {
     unsafe { libc::getuid() == 0 }
 }
@@ -94,25 +95,49 @@ fn main() -> Result<()> {
     // Sincronizar UI al arrancar
     sync_ui_from_config(&app, &config_path);
 
-    // 3. Crear Tray Icon
+    // 3. Crear Tray Icon (Con tolerancia a fallos para entornos como Waybar)
     info!("Configurando Tray Icon...");
     let icon = load_icon();
-    let menu = build_tray_menu()?;
-    let _tray_icon = tray_icon::TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_menu_on_left_click(false)
-        .with_tooltip("Bloqueador Web")
-        .with_icon(icon)
-        .build()?;
+    let _tray_icon = match build_tray_menu() {
+        Ok(menu) => {
+            match tray_icon::TrayIconBuilder::new()
+                .with_menu(Box::new(menu))
+                .with_menu_on_left_click(false)
+                .with_tooltip("Bloqueador Web")
+                .with_icon(icon)
+                .build()
+            {
+                Ok(tray) => {
+                    info!("Tray Icon configurado exitosamente.");
+                    Some(tray)
+                }
+                Err(e) => {
+                    error!("No se pudo inicializar el Tray Icon (¿Waybar/DBus sin soporte SNI?): {}", e);
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            error!("No se pudo construir el menú del Tray Icon: {}", e);
+            None
+        }
+    };
 
-    // 4. Interceptar el cierre (X) para ocultar la ventana en vez de cerrar el proceso
+    let has_tray = _tray_icon.is_some();
+
+    // 4. Interceptar el cierre (X) para ocultar la ventana en vez de cerrar el proceso (solo si hay Tray Icon)
     let app_weak = app.as_weak();
     app.window().on_close_requested(move || {
-        if let Some(app) = app_weak.upgrade() {
-            info!("Ventana cerrada por el usuario. Ocultando ventana...");
-            app.hide().unwrap();
+        if has_tray {
+            if let Some(app) = app_weak.upgrade() {
+                info!("Ventana cerrada por el usuario. Ocultando ventana ya que hay Tray Icon...");
+                app.hide().unwrap();
+            }
+            slint::CloseRequestResponse::KeepWindowShown
+        } else {
+            info!("Ventana cerrada por el usuario. Cerrando la aplicación ya que no hay Tray Icon.");
+            slint::CloseRequestResponse::HideWindowAndExit
         }
-        slint::CloseRequestResponse::KeepWindowShown
     });
 
     // Hilo para recibir eventos del Tray Icon de forma segura

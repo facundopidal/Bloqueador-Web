@@ -124,7 +124,6 @@ fn write_content_to_hosts(path: &Path, content: &[String]) -> Result<()> {
 #[cfg(not(target_os = "windows"))]
 fn write_content_to_hosts(path: &Path, content: &[String]) -> Result<()> {
     use std::process::{Command, Stdio};
-    use std::io::Write;
 
     // Si ya somos root (UID 0), escribimos directamente para no pedir contraseña
     if unsafe { libc::getuid() } == 0 {
