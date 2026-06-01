@@ -98,27 +98,28 @@ fn main() -> Result<()> {
     // 3. Crear Tray Icon (Con tolerancia a fallos para entornos como Waybar)
     info!("Configurando Tray Icon...");
     let icon = load_icon();
-    let _tray_icon = match build_tray_menu() {
-        Ok(menu) => {
-            match tray_icon::TrayIconBuilder::new()
-                .with_menu(Box::new(menu))
-                .with_menu_on_left_click(false)
-                .with_tooltip("Bloqueador Web")
-                .with_icon(icon)
-                .build()
-            {
-                Ok(tray) => {
-                    info!("Tray Icon configurado exitosamente.");
-                    Some(tray)
+    let _tray_icon = match tray_icon::TrayIconBuilder::new()
+        .with_menu_on_left_click(false)
+        .with_tooltip("Bloqueador Web")
+        .with_icon(icon)
+        .build()
+    {
+        Ok(tray) => {
+            info!("Tray Icon construido. Inicializando menú...");
+            // Crear el menú después de construir el TrayIcon (que inicializa GTK de forma segura)
+            match build_tray_menu() {
+                Ok(menu) => {
+                    tray.set_menu(Some(Box::new(menu)));
+                    info!("Tray Icon y menú configurados exitosamente.");
                 }
                 Err(e) => {
-                    error!("No se pudo inicializar el Tray Icon (¿Waybar/DBus sin soporte SNI?): {}", e);
-                    None
+                    error!("No se pudo construir o asignar el menú del Tray Icon: {}", e);
                 }
             }
+            Some(tray)
         }
         Err(e) => {
-            error!("No se pudo construir el menú del Tray Icon: {}", e);
+            error!("No se pudo inicializar el Tray Icon (¿Waybar/DBus sin soporte SNI?): {}", e);
             None
         }
     };
