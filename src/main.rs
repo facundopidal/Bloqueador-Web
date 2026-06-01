@@ -57,17 +57,20 @@ fn main() -> Result<()> {
     info!("Iniciando aplicación...");
     info!("Log inicializado en: {:?}", log_path);
 
-    // 1. Verificación de Administrador
-    if !is_elevated() {
-        info!("La aplicación no tiene permisos de administrador. Mostrando diálogo.");
-        MessageDialog::new()
-            .set_title("Error de Permisos")
-            .set_description("Este programa necesita ejecutarse como Administrador para modificar el archivo hosts.")
-            .set_level(MessageLevel::Error)
-            .show();
-        return Ok(());
+    // 1. Verificación de Administrador (Solo en Windows al arrancar)
+    #[cfg(target_os = "windows")]
+    {
+        if !is_elevated() {
+            info!("La aplicación no tiene permisos de administrador. Mostrando diálogo.");
+            MessageDialog::new()
+                .set_title("Error de Permisos")
+                .set_description("Este programa necesita ejecutarse como Administrador para modificar el archivo hosts.")
+                .set_level(MessageLevel::Error)
+                .show();
+            return Ok(());
+        }
+        info!("Permisos de administrador confirmados.");
     }
-    info!("Permisos de administrador confirmados.");
 
     // Canal para notificaciones del hilo principal al scheduler
     let (tx, rx) = mpsc::channel::<()>();

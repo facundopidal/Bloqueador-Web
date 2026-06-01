@@ -99,19 +99,70 @@ pub fn save_hosts_data_to_path<P: AsRef<Path>>(path: P, data: &HostsData) -> Res
         new_content.push(END_MARKER.to_string());
     }
 
-    // 2. Escritura atómica usando archivo temporal
+    // 2. Escribir contenido usando la estrategia adecuada por plataforma
+    write_content_to_hosts(path, &new_content)?;
+
+    info!("Archivo hosts actualizado exitosamente.");
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn write_content_to_hosts(path: &Path, content: &[String]) -> Result<()> {
     let temp_path = path.with_extension("tmp");
-    info!("Escribiendo en archivo temporal: {:?}", temp_path);
+    info!("Escribiendo en archivo temporal en Windows: {:?}", temp_path);
     {
         let mut file = File::create(&temp_path).context("No se pudo crear archivo temporal")?;
-        for line in new_content {
+        for line in content {
             writeln!(file, "{}", line)?;
         }
     }
-
     fs::rename(&temp_path, path)
         .context("Error al reemplazar el archivo hosts original. Comprueba tu antivirus.")?;
-    info!("Archivo hosts actualizado exitosamente.");
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn write_content_to_hosts(path: &Path, content: &[String]) -> Result<()> {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+
+    // Si ya somos root (UID 0), escribimos directamente para no pedir contraseña
+    if unsafe { libc::getuid() } == 0 {
+        let temp_path = path.with_extension("tmp");
+        info!("Escribiendo en archivo temporal como root en Unix: {:?}", temp_path);
+        {
+            let mut file = File::create(&temp_path).context("No se pudo crear archivo temporal")?;
+            for line in content {
+                writeln!(file, "{}", line)?;
+            }
+        }
+        fs::rename(&temp_path, path).context("Error al reemplazar el archivo hosts original")?;
+        return Ok(());
+    }
+
+    // Si no somos root, usamos pkexec tee para elevar privilegios
+    info!("Elevando privilegios mediante pkexec para escribir en {:?}", path);
+    let mut child = Command::new("pkexec")
+        .args(["tee", path.to_str().unwrap_or("/etc/hosts")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("No se pudo iniciar pkexec para guardar el archivo hosts")?;
+
+    {
+        let stdin = child.stdin.as_mut().context("No se pudo abrir el stdin de pkexec")?;
+        for line in content {
+            writeln!(stdin, "{}", line)?;
+        }
+    }
+
+    let output = child.wait_with_output().context("Error esperando a pkexec")?;
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("Falló la elevación de permisos para guardar: {}", err_msg.trim()));
+    }
+
     Ok(())
 }
 
