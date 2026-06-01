@@ -2,7 +2,13 @@
 
 use anyhow::Result;
 use chrono::NaiveTime;
+#[cfg(target_os = "windows")]
 use is_elevated::is_elevated;
+
+#[cfg(not(target_os = "windows"))]
+fn is_elevated() -> bool {
+    unsafe { libc::getuid() == 0 }
+}
 use log::{LevelFilter, error, info};
 use native_dialog::{MessageDialog, MessageType};
 use simplelog::{Config as LogConfig, WriteLogger};
