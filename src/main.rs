@@ -10,7 +10,7 @@ fn is_elevated() -> bool {
     unsafe { libc::getuid() == 0 }
 }
 use log::{LevelFilter, error, info};
-use native_dialog::{MessageDialog, MessageType};
+use rfd::{MessageDialog, MessageLevel};
 use simplelog::{Config as LogConfig, WriteLogger};
 use std::sync::mpsc;
 
@@ -42,14 +42,14 @@ fn main() -> Result<()> {
             let _ = WriteLogger::init(LevelFilter::Info, LogConfig::default(), file);
         }
         Err(e) => {
-            let _ = MessageDialog::new()
+            MessageDialog::new()
                 .set_title("Error de Log")
-                .set_text(&format!(
+                .set_description(format!(
                     "No se pudo crear el archivo de log en {:?}\nError: {}",
                     log_path, e
                 ))
-                .set_type(MessageType::Error)
-                .show_alert();
+                .set_level(MessageLevel::Error)
+                .show();
         }
     }
 
@@ -62,10 +62,9 @@ fn main() -> Result<()> {
         info!("La aplicación no tiene permisos de administrador. Mostrando diálogo.");
         MessageDialog::new()
             .set_title("Error de Permisos")
-            .set_text("Este programa necesita ejecutarse como Administrador para modificar el archivo hosts.")
-            .set_type(MessageType::Error)
-            .show_alert()
-            .unwrap();
+            .set_description("Este programa necesita ejecutarse como Administrador para modificar el archivo hosts.")
+            .set_level(MessageLevel::Error)
+            .show();
         return Ok(());
     }
     info!("Permisos de administrador confirmados.");
