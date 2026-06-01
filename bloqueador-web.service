@@ -1,0 +1,12 @@
+[Unit]
+Description=Servicio de Bloqueo de Sitios Web (Daemon)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bloqueador-web --daemon
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

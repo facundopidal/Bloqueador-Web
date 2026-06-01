@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bloqueador Web
+Comment=Gestor visual para bloqueo de sitios web
+Exec=/usr/local/bin/bloqueador-web
+Icon=bloqueador-web
+Terminal=false
+Categories=Utility;Settings;

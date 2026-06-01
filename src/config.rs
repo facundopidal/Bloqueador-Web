@@ -44,6 +44,39 @@ impl Config {
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
+        let content =
+            toml::to_string_pretty(self).context("Error serializando la configuración a TOML")?;
+        write_config_content(path, &content)?;
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn write_config_content(path: &Path, content: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "No se pudo crear el directorio para la configuración: {:?}",
+                parent
+            )
+        })?;
+    }
+    fs::write(path, content).with_context(|| {
+        format!(
+            "No se pudo escribir el archivo de configuración: {:?}",
+            path
+        )
+    })?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn write_config_content(path: &Path, content: &str) -> Result<()> {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+
+    // Si ya somos root (UID 0), escribimos directamente para no pedir contraseña
+    if unsafe { libc::getuid() } == 0 {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {
                 format!(
@@ -52,16 +85,49 @@ impl Config {
                 )
             })?;
         }
-        let content =
-            toml::to_string_pretty(self).context("Error serializando la configuración a TOML")?;
         fs::write(path, content).with_context(|| {
             format!(
                 "No se pudo escribir el archivo de configuración: {:?}",
                 path
             )
         })?;
-        Ok(())
+        return Ok(());
     }
+
+    // Crear el directorio con pkexec si no existe
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            let status = Command::new("pkexec")
+                .args(["mkdir", "-p", parent.to_str().unwrap_or("/etc/bloqueador-web")])
+                .status()
+                .context("No se pudo iniciar pkexec para crear el directorio de configuración")?;
+            if !status.success() {
+                return Err(anyhow::anyhow!("Falló la elevación de permisos para crear el directorio de configuración"));
+            }
+        }
+    }
+
+    // Escribir el archivo con pkexec tee
+    let mut child = Command::new("pkexec")
+        .args(["tee", path.to_str().unwrap_or("/etc/bloqueador-web/config.toml")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("No se pudo iniciar pkexec para guardar el archivo de configuración")?;
+
+    {
+        let stdin = child.stdin.as_mut().context("No se pudo abrir el stdin de pkexec")?;
+        stdin.write_all(content.as_bytes())?;
+    }
+
+    let output = child.wait_with_output().context("Error esperando a pkexec")?;
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!("Falló la elevación de permisos para guardar la configuración: {}", err_msg.trim()));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
