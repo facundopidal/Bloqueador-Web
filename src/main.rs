@@ -283,6 +283,7 @@ fn run_ui() -> Result<()> {
             slint::CloseRequestResponse::KeepWindowShown
         } else {
             info!("Ventana cerrada por el usuario. Cerrando la aplicación.");
+            let _ = slint::quit_event_loop();
             slint::CloseRequestResponse::HideWindow
         }
     });
