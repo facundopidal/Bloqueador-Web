@@ -136,7 +136,7 @@ fn main() -> Result<()> {
             slint::CloseRequestResponse::KeepWindowShown
         } else {
             info!("Ventana cerrada por el usuario. Cerrando la aplicación ya que no hay Tray Icon.");
-            slint::CloseRequestResponse::HideWindowAndExit
+            slint::CloseRequestResponse::HideWindow
         }
     });
 
