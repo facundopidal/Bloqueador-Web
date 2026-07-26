@@ -1,58 +1,113 @@
 # Bloqueador Web
 
-Una sencilla aplicación para Windows que se ejecuta en la bandeja del sistema (system tray) y permite bloquear y desbloquear sitios web modificando el archivo `hosts` del sistema.
+Una aplicación moderna y multiplataforma (Windows y Linux) escrita en Rust para bloquear sitios web distractivos y mejorar la productividad. Cuenta con una interfaz gráfica (GUI) desarrollada en **Slint**, un **daemon de fondo** autónomo, modos de bloqueo programado por horario y un sistema de fricción para evitar desbloqueos impulsivos.
 
-## Características
+---
 
-- **Interfaz en la Bandeja del Sistema:** El programa se aloja discretamente en la bandeja del sistema, accesible a través de un icono.
-- **Requiere Privilegios de Administrador:** Para poder modificar el archivo `hosts`, la aplicación verifica si se está ejecutando con permisos de administrador al inicio. Si no es así, muestra un error y se cierra.
-- **Gestión de URLs:**
-  - **Añadir URL:** Permite agregar una nueva URL a la lista de bloqueo a través de un simple cuadro de diálogo.
-  - **Eliminar URL:** Las URLs bloqueadas se listan en un submenú. Un simple clic sobre una de ellas la elimina del bloqueo.
-  - **Limpiar Todo:** Opción para eliminar todas las URLs bloqueadas de una sola vez.
-- **Sistema de Logs:** Genera un archivo de registro (`.log`) en la misma carpeta del ejecutable para ayudar a diagnosticar problemas, especialmente cuando la aplicación se configura para arrancar con el sistema.
+## 🚀 Características Principales
 
-## ¿Cómo Funciona?
+- **Interfaz Gráfica Moderna (Slint):** Panel de control oscuro e intuitivo de 650x700px para gestionar tu lista de sitios y horarios de forma sencilla.
+- **Soporte Multiplataforma:**
+  - **Windows:** Integración con el archivo `hosts` del sistema, verificación de elevación de administrador y Programador de Tareas (`schtasks`).
+  - **Linux:** Integración con `/etc/hosts`, elevación con `pkexec`, servicio `systemd` y lanzadores `.desktop`.
+- **Modos de Bloqueo Flexibles:**
+  - **Siempre Bloqueado (*Always*):** Bloquea el sitio las 24 horas del día.
+  - **Por Horario (*Scheduled*):** Permite definir rangos horarios (ej. de `09:00` a `18:00` o nocturnos como de `22:00` a `06:00`). El sitio solo se bloqueará durante el horario configurado.
+- **Fricción / Puzzle de Desbloqueo:**
+  - Para evitar que desbloquees sitios por impulso durante tus horas de trabajo, eliminar un sitio requiere pasar por un **desafío de concentración**:
+    - Cuenta regresiva obligatoria de 30 segundos.
+    - Escritura exacta de la frase de compromiso: `"Prometo trabajar concentrado hoy"`.
+- **Daemon de Fondo Autónomo (`--daemon`):**
+  - Se ejecuta en segundo plano (polling cada 10 segundos), leyendo la configuración en `config.toml` y activando/desactivando bloqueos en el archivo `hosts` según la hora actual, sin necesidad de mantener la interfaz abierta.
+- **Gestión de Inicio Automático (AutoStart):**
+  - Botón integrado en la cabecera de la UI para activar o desactivar el arranque con el sistema.
+- **Modificación Segura del Archivo `hosts`:**
+  - Delimita sus reglas entre marcadores `# BEGIN BLOQUEADOR-WEB` y `# END BLOQUEADOR-WEB`.
+  - Crea copias de seguridad automáticas (`hosts.bak`) antes de realizar cambios.
 
-El programa utiliza una combinación de crates de Rust para lograr su funcionalidad:
+---
 
-1.  **`tray-icon` y `tao`:** Para crear el icono en la bandeja del sistema, el menú contextual y gestionar el bucle de eventos de la interfaz de usuario.
-2.  **`is_elevated`:** Para comprobar si la aplicación se está ejecutando con los permisos de administrador necesarios.
-3.  **`native-dialog`:** Para mostrar diálogos nativos de Windows (errores, confirmaciones).
-4.  **Modificación del Archivo `hosts`:**
-    - La lógica principal se encuentra en `src/hosts.rs`.
-    - La aplicación lee el archivo `C:\Windows\System32\drivers\etc\hosts`.
-    - Añade las URLs a bloquear dentro de un bloque delimitado por los marcadores `BEGIN BLOQUEADOR-WEB` y `END BLOQUEADOR-WEB`.
-    - Cada URL bloqueada se traduce en una línea como `127.0.0.1 mi-sitio-web.com`.
-    - Para evitar la pérdida de datos, se crea un backup (`.bak`) y se utiliza un archivo temporal (`.tmp`) para una escritura atómica.
-5.  **`log` y `simplelog`:** Para registrar las acciones importantes y los errores en un archivo de texto, facilitando la depuración.
+## 🛠️ ¿Cómo Funciona?
 
-## Uso
+### Arquitectura de la Aplicación
 
-### Compilación
+El proyecto se divide en dos componentes principales gestionados desde un mismo binario:
 
-Puedes compilar el proyecto usando Cargo:
+1. **Interfaz Gráfica (GUI - Slint):**
+   - Definida en `ui/appwindow.slint` y manejada por `src/main.rs`.
+   - Permite agregar sitios, configurar horarios, cambiar el estado de inicio automático y resolver el puzzle de desbloqueo.
+   - Guarda los cambios en `config.toml`.
+2. **Daemon de Fondo (`--daemon`):**
+   - Proceso ligero sin interfaz que se ejecuta al iniciar el sistema.
+   - Consulta periódicamente `config.toml` e inspecciona la hora del sistema para modificar dinámicamente el archivo `hosts`.
+
+### Persistencia y Archivos
+
+- **Configuración (`config.toml`):**
+  - **Windows:** Ubicado en la misma carpeta que el ejecutable.
+  - **Linux:** Ubicado en `/etc/bloqueador-web/config.toml`.
+- **Archivo `hosts`:**
+  - **Windows:** `C:\Windows\System32\drivers\etc\hosts`
+  - **Linux:** `/etc/hosts`
+
+---
+
+## 📦 Instalación y Uso
+
+### Compilación General
+
+Se requiere tener instalado el toolchain de **Rust** (cargo):
 
 ```bash
-# Para una versión de depuración (debug)
+# Compilación para desarrollo
 cargo build
 
-# Para una versión optimizada de lanzamiento (release)
+# Compilación optimizada para producción (Release)
 cargo build --release
 ```
 
-El ejecutable se encontrará en `target/debug/` o `target/release/`.
+---
 
-### Ejecución
+### 🐧 Instalación en Linux
 
-1.  Ejecuta `Bloqueador-Web.exe` **como Administrador**.
-2.  El icono aparecerá en la bandeja del sistema.
-3.  Haz clic derecho sobre el icono para acceder a las opciones:
-    - **Añadir URL...:** Abre un cuadro de diálogo para que ingreses la URL a bloquear (ej: `youtube.com`).
-    - **URLs Bloqueadas:** Muestra la lista de sitios bloqueados. Haz clic en uno para desbloquearlo.
-    - **Limpiar Todo:** Elimina todas las reglas de bloqueo creadas por la aplicación.
-    - **Salir:** Cierra la aplicación.
+El proyecto incluye un script de instalación automatizado `install.sh` preparado para distribuciones Linux con `systemd`:
 
-### Diagnóstico de Problemas (Logging)
+```bash
+chmod +x install.sh
+./install.sh
+```
 
-Si la aplicación no se inicia o se comporta de manera inesperada (especialmente al configurarla para arrancar con Windows), revisa el archivo `Bloqueador-Web.log` que se crea en la misma carpeta que el archivo `.exe`. Este log contiene información sobre el flujo de ejecución y posibles errores.
+El script realiza lo siguiente:
+1. Compila la aplicación en modo `--release`.
+2. Copia el binario a `/usr/local/bin/bloqueador-web`.
+3. Copia el icono a `/usr/share/pixmaps/bloqueador-web.png`.
+4. Instala y habilita el servicio de systemd (`bloqueador-web.service`) para ejecutar el daemon de fondo como `root`.
+5. Instala el acceso directo en el menú de aplicaciones (`bloqueador-web.desktop`).
+6. Crea el archivo de configuración inicial en `/etc/bloqueador-web/config.toml`.
+
+Para abrir la interfaz gráfica en Linux, simplemente busca **"Bloqueador Web"** en tu menú de aplicaciones o ejecuta:
+```bash
+bloqueador-web
+```
+
+---
+
+### 🪟 Uso en Windows
+
+1. Compila el proyecto con `cargo build --release`.
+2. Ejecuta `target\release\Bloqueador-Web.exe` **como Administrador** (necesario para modificar el archivo `hosts`).
+3. Para ejecutar el daemon en segundo plano:
+   ```cmd
+   Bloqueador-Web.exe --daemon
+   ```
+4. Si activas el **Inicio Automático** desde la UI, el programa creará una tarea en el **Programador de Tareas** (`schtasks`) para iniciarse automáticamente con privilegios al iniciar sesión.
+
+---
+
+## 🪵 Diagnóstico y Registros (Logs)
+
+La aplicación genera registros detallados para facilitar la depuración (especialmente útil para el daemon de fondo):
+
+- **Windows:** `Bloqueador-Web.log` en el directorio de la aplicación.
+- **Linux:** `/var/log/bloqueador-web.log`.
+
